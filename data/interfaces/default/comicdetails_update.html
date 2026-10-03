@@ -604,6 +604,7 @@
         </style>
         <script>
         var collapsedGroups = {};
+        var annualsExpanded = ${'true' if mylar.CONFIG.ANNUALS_EXPANDED else 'false'};
         $(document).ready(function() {
             $("#jeditable-activate").click(function() {
                $(this).prev().click();
@@ -2023,7 +2024,7 @@
                     "rowGroup": {
                          dataSrc: 10,
                          startRender: function (rows, group) {
-                             var expanded = !!collapsedGroups[group];
+                             var expanded = annualsExpanded ? !collapsedGroups[group] : !!collapsedGroups[group];
                              rows.nodes().each(function (r){
                                  r.style.display = 'none';
                                  icon = '+';

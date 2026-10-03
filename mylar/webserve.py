@@ -6911,6 +6911,7 @@ class WebInterface(object):
                     "max_logsize": mylar.CONFIG.MAX_LOGSIZE,
                     "keep_html_cache": helpers.checked(mylar.CONFIG.KEEP_HTML_CACHE),
                     "annuals_on": helpers.checked(mylar.CONFIG.ANNUALS_ON),
+                    "annuals_expanded": helpers.checked(mylar.CONFIG.ANNUALS_EXPANDED),
                     "enable_check_folder": helpers.checked(mylar.CONFIG.ENABLE_CHECK_FOLDER),
                     "check_folder": mylar.CONFIG.CHECK_FOLDER,
                     "download_scan_interval": mylar.CONFIG.DOWNLOAD_SCAN_INTERVAL,
@@ -7481,7 +7482,7 @@ class WebInterface(object):
 
 
     def configUpdate(self, **kwargs):
-        checked_configs = ['enable_https', 'launch_browser', 'backup_on_start', 'keep_html_cache', 'syno_fix', 'auto_update', 'annuals_on', 'api_enabled', 'nzb_startup_search',
+        checked_configs = ['enable_https', 'launch_browser', 'backup_on_start', 'keep_html_cache', 'syno_fix', 'auto_update', 'annuals_on', 'annuals_expanded', 'api_enabled', 'nzb_startup_search',
                            'enforce_perms', 'sab_to_mylar', 'torrent_local', 'torrent_seedbox', 'rtorrent_ssl', 'rtorrent_verify', 'rtorrent_startonload', 'qbittorrent_ignore_ssl',
                            'enable_torrents', 'enable_rss', 'experimental', 'enable_torrent_search', 'enable_32p', 'enable_torznab',
                            'newznab', 'use_minsize', 'use_maxsize', 'ddump', 'failed_download_handling', 'sab_client_post_processing', 'nzbget_client_post_processing',
