@@ -24,7 +24,7 @@ import random
 import traceback
 
 import mylar
-from mylar import db, logger, helpers, importer, updater, filechecker
+from mylar import db, logger, helpers, importer, importstatus, updater, filechecker
 
 # You can scan a single directory and append it to the current library by specifying append=True
 def libraryScan(dir=None, append=False, ComicID=None, ComicName=None, cron=None, queue=None):
@@ -53,11 +53,16 @@ def libraryScan(dir=None, append=False, ComicID=None, ComicName=None, cron=None,
     cbz_retry = 0
 
     mylar.IMPORT_STATUS = 'Now attempting to parse files for additional information'
+    importstatus.phase('scanning', 'Scanning %s' % dir)
     myDB = db.DBConnection()
     #mylar.IMPORT_PARSED_COUNT #used to count what #/totalfiles the filename parser is currently on
     for r, d, f in os.walk(dir):
+        if importstatus.stop_requested():
+            logger.info('[IMPORT] Library scan stopped by request while scanning files.')
+            return "Cancelled"
         for files in f:
             mylar.IMPORT_FILES +=1
+            importstatus.update(files_found=mylar.IMPORT_FILES)
             if any(files.lower().endswith('.' + x.lower()) for x in extensions):
                 comicpath = os.path.join(r, files)
                 if mylar.CONFIG.IMP_PATHS is True:
@@ -121,6 +126,7 @@ def libraryScan(dir=None, append=False, ComicID=None, ComicName=None, cron=None,
                                            })
                         comiccnt +=1
                         mylar.IMPORT_PARSED_COUNT +=1
+                        importstatus.update(files_parsed=comiccnt)
                     else:
                         failure_list.append({'ComicFilename':           comic,
                                              'ComicLocation':           comicpath,
@@ -132,6 +138,7 @@ def libraryScan(dir=None, append=False, ComicID=None, ComicName=None, cron=None,
                                                                          'issue_number':   results['issue_number']}
                                            })
                         mylar.IMPORT_FAILURE_COUNT +=1
+                        importstatus.inc('parse_failures')
                         if comic.endswith('.cbz'):
                             cbz_retry +=1
 
@@ -146,6 +153,7 @@ def libraryScan(dir=None, append=False, ComicID=None, ComicName=None, cron=None,
                                              })
                     logger.info('[' + str(e) + '] FAILURE encountered. Logging the error for ' + comic + ' and continuing...')
                     mylar.IMPORT_FAILURE_COUNT +=1
+                    importstatus.inc('parse_failures')
                     if comic.endswith('.cbz'):
                         cbz_retry +=1
                     continue
@@ -242,9 +250,15 @@ def libraryScan(dir=None, append=False, ComicID=None, ComicName=None, cron=None,
     cvinfo_CID = None
     cnt = 0
     mylar.IMPORT_STATUS = '[0%] Now parsing individual filenames for metadata if available'
+    importstatus.phase('metadata', 'Reading metadata / parsing filenames')
+    importstatus.update(files_total=comiccnt)
 
     for i in comic_list:
+        if importstatus.stop_requested():
+            logger.info('[IMPORT] Library scan stopped by request while reading metadata.')
+            return "Cancelled"
         mylar.IMPORT_STATUS = '[' + str(cnt) + '/' + str(comiccnt) + '] Now parsing individual filenames for metadata if available'
+        importstatus.update(files_analyzed=cnt, issueids_total=len(issueid_list))
         logger.fdebug('Analyzing : ' + i['ComicFilename'])
         comfilename = i['ComicFilename']
         comlocation = i['ComicLocation']
@@ -523,10 +537,20 @@ def libraryScan(dir=None, append=False, ComicID=None, ComicName=None, cron=None,
         reverse_issueids.append(x['issueid'])
 
     vals = []
+    importstatus.update(files_analyzed=cnt)
     if len(reverse_issueids) > 0:
         mylar.IMPORT_STATUS = 'Now Reverse looking up ' + str(len(reverse_issueids)) + ' IssueIDs to get the ComicIDs'
+        importstatus.phase('cv_lookup', 'Reverse looking up %s IssueIDs on ComicVine' % len(reverse_issueids))
+        importstatus.update(issueids_total=len(reverse_issueids), issueids_resolved=0)
         vals = mylar.cv.getComic(None, 'import', comicidlist=reverse_issueids)
+        if not vals:
+            vals = []
         #logger.fdebug('vals returned:' + str(vals))
+        if importstatus.stop_requested():
+            logger.info('[IMPORT] Library scan stopped by request during the ComicVine lookup.')
+            return "Cancelled"
+
+        importstatus.update(issueids_resolved=len(vals))
 
     if len(watch_kchoice) > 0:
         watchchoice['watchlist'] = watch_kchoice
@@ -633,6 +657,9 @@ def libraryScan(dir=None, append=False, ComicID=None, ComicName=None, cron=None,
 def scanLibrary(scan=None, queue=None):
     mylar.IMPORT_FILES = 0
     mylar.IMPORT_PARSED_COUNT = 0
+    mylar.IMPORT_CID_COUNT = 0
+    mylar.IMPORT_FAILURE_COUNT = 0
+    mylar.IMPORT_TOTALFILES = 0
     valreturn = []
     if scan:
         try:
@@ -644,7 +671,12 @@ def scanLibrary(scan=None, queue=None):
             valreturn.append({"somevalue":  'self.ie',
                               "result":     'error'})
             return queue.put(valreturn)
-        if soma == "Completed":
+        if soma == "Cancelled":
+            mylar.IMPORT_STATUS = 'Scan cancelled.'
+            valreturn.append({"somevalue":  'self.ie',
+                              "result":     'cancelled'})
+            return queue.put(valreturn)
+        elif soma == "Completed":
             logger.info('[IMPORT] Sucessfully completed import.')
         elif soma == "Fail":
             mylar.IMPORT_STATUS = 'Failure'
@@ -662,6 +694,7 @@ def scanLibrary(scan=None, queue=None):
             #logger.info('[IMPORT-BREAKDOWN] Failure Files: ' + str(soma['failure_list']))
       
             myDB = db.DBConnection()
+            importstatus.phase('saving', 'Saving %s scanned files to the import list' % int(soma['import_cv_ids'] + soma['import_count']))
 
             #first we do the CV ones.
             if int(soma['import_cv_ids']) > 0:
