@@ -2752,9 +2752,6 @@ def weekly_info(week=None, year=None, current=None):
         weeknumber = 51
         year = 2024
 
-    weeknumber = int(weeknumber)
-    year = int(year)
-
     startofyear = date(year,1,1)
     week0 = startofyear - timedelta(days=startofyear.isoweekday())
     stweek = datetime.datetime.strptime(week0.strftime('%Y-%m-%d'), '%Y-%m-%d')
